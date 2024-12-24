@@ -44,7 +44,6 @@ The project consists of three main components:
 1. Clone the repository:
 ```bash
 git clone https://github.com/Snitcko/ai-lead-qualification-agent.git
-cd real-estate-ai-agent
 ```
 
 2. Create and activate a virtual environment:
