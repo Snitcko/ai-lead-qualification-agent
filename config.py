@@ -1,16 +1,31 @@
 from typing import TypedDict, Dict, Optional, Any
 
 class Message(TypedDict):
+    """
+    Type definition for chat messages.
+    
+    Attributes:
+        role (str): The role of the message sender ('user' or 'assistant')
+        content (str): The actual message content
+    """
     role: str
     content: str
 
 class QualChecklist(TypedDict):
+    """
+    Type definition for qualification checklist state.
+    
+    Attributes:
+        checklist (Dict[str, Optional[str]]): 
+            Dictionary mapping qualification goals to their collected values
+        last_update (float): 
+            Timestamp of the last checklist update (Unix timestamp)
+    """
     checklist: Dict[str, Optional[str]]
     last_update: float
 
 # OpenAI Configuration
 AVAILABLE_MODELS = [
-    "gpt-3.5-turbo-0125",
     "gpt-4o-mini-2024-07-18",
     "gpt-4o-2024-08-06",
     ]
