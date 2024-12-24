@@ -10,10 +10,23 @@ from rag import (
     create_embeddings,
     upload_to_pinecone,
     get_relevant_context
-)
+    )
+
 
 def initialize_session_state() -> None:
-    """Initialize all necessary session state variables."""
+    """
+    Initialize all necessary session state variables for the Streamlit application.
+    
+    This function sets up default values for:
+        - Chat messages history
+        - Qualification checklist and its last update timestamp
+        - Selected AI model
+        - System role description
+        - Knowledge base loading status
+    
+    The session state persists across Streamlit reruns, ensuring conversation
+    continuity and state management.
+    """
     if "messages" not in st.session_state:
         st.session_state.messages = [
             {"role": "assistant", "content": "Hello! How can I help you with your property search today?"}
@@ -25,7 +38,6 @@ def initialize_session_state() -> None:
             "last_update": time.time()
         }
         
-    # Добавляем инициализацию остальных переменных
     if "selected_model" not in st.session_state:
         st.session_state.selected_model = AVAILABLE_MODELS[0]
         
@@ -35,8 +47,24 @@ def initialize_session_state() -> None:
     if "knowledge_base_loaded" not in st.session_state:
         st.session_state.knowledge_base_loaded = False
 
-def create_checklist_from_text(goals_text: str, openai_api_key: str) -> Dict[str, Optional[str]]:
-    """Convert text goals into a structured checklist."""
+
+def create_checklist_from_text(goals_text: str, openai_api_key: str
+                               ) -> Dict[str, Optional[str]]:
+    """
+    Convert text goals into a structured checklist using OpenAI's API.
+    
+    Args:
+        goals_text (str): Raw text containing qualification goals
+        openai_api_key (str): OpenAI API key for making requests
+    
+    Returns:
+        Dict[str, Optional[str]]: A dictionary where keys are goals and values are None
+        
+    Example:
+        >>> goals = "Need to check: budget, timeline"
+        >>> create_checklist_from_text(goals, api_key)
+        {'budget': None, 'timeline': None}
+    """
     client = OpenAI(api_key=openai_api_key)
     try:
         response = client.chat.completions.create(
@@ -68,8 +96,34 @@ def process_message(
     model: str,
     system_role: str,
     context: str = ""
-) -> Tuple[Optional[str], Dict[str, Optional[str]]]:
-    """Process message and update checklist."""
+    ) -> Tuple[Optional[str], Dict[str, Optional[str]]]:
+    """
+    Process a conversation message and update the qualification checklist.
+    
+    This function sends the conversation history, current checklist state, and any
+    relevant context to the AI model and receives both a response message and
+    updated checklist values.
+    
+    Args:
+        messages (List[Message]): Conversation history
+        checklist (QualChecklist): Current qualification checklist state
+        openai_api_key (str): OpenAI API key
+        model (str): Name of the OpenAI model to use
+        system_role (str): System prompt defining the AI's role
+        context (str, optional): Additional context from knowledge base
+    
+    Returns:
+        Tuple[Optional[str], Dict[str, Optional[str]]]: 
+            - The AI's response message
+            - Updated checklist values
+            
+    Example:
+        >>> msgs = [{"role": "user", "content": "My budget is $500,000"}]
+        >>> checklist = {"checklist": {"budget": None}, "last_update": time.time()}
+        >>> response, updated_checklist = process_message(msgs, checklist, api_key, "gpt-3.5-turbo", "You are an AI assistant")
+        >>> print(updated_checklist)
+        {'budget': '500000'}
+    """
     client = OpenAI(api_key=openai_api_key)
     
     # Format complete system prompt
@@ -109,31 +163,37 @@ def process_message(
         return None, checklist["checklist"]
 
 
-
-# Настраиваем заголовок и описание приложения
 def create_streamlit_interface():
-    """Create the Streamlit user interface."""
+    """
+    Create and configure the Streamlit user interface.
+    
+    This function sets up:
+        - Main title and description
+        - Sidebar with API key inputs
+        - Model selection
+        - Agent role configuration
+        - Knowledge base upload
+        - Qualification goals selection
+        - Real-time qualification status display
+    """
     st.title("🤖 💬 AI Real Estate Lead Qualification Agent")
     st.caption("🚀 Powered by OpenAI & Pinecone")
 
-# Настраиваем боковую панель
     with st.sidebar:
-        # API Keys
         openai_api_key = st.text_input(
             "OpenAI API Key", 
             key="openai_api_key", 
             type="password"
             )
-        # Ссылка на получение API ключа
         "[Get an OpenAI API key](https://platform.openai.com/account/api-keys)" 
-        # Model Selection
+
         selected_model = st.selectbox(
             "Select Model",
             AVAILABLE_MODELS,
-            index=0, # По умолчанию выбрана первая модель
+            index=0,
             key="selected_model" 
             )
-        # Agent Role
+
         system_role = st.text_area(
             "Agent Role Description",
             value="You are an AI assistant that helps qualify real estate leads.",
@@ -144,18 +204,14 @@ def create_streamlit_interface():
         pinecone_api_key = st.text_input(
             "Pinecone API Key", 
             key="pinecone_api_key", 
-            type="password") # Скрываем ключ звездочками
-        # Ссылка на получение API ключа
+            type="password")
         "[Get an Pinecone API Key](https://app.pinecone.io/organizations/-/keys)"
-        
-        # Knowledge Base Upload
+
         knowledge_file = st.file_uploader(
             "Upload Knowledge Base",
             type="txt",
             help="Upload a TXT file with your knowledge base"
         )
-            
-        # Обрабатываем только если файл новый и еще не загружен
         if knowledge_file and not st.session_state.knowledge_base_loaded:
             if not st.session_state.get("pinecone_api_key"):
                 st.error("Please add your Pinecone API key first to upload knowledge base.")
@@ -171,15 +227,9 @@ def create_streamlit_interface():
                     if index and upload_to_pinecone(index, chunks, embeddings):
                         st.session_state.knowledge_base_loaded = True
                         st.success("Knowledge base uploaded successfully!")
-        
-        
-        
-        
-        
-        # Новый интерфейс для добавления целей
+
         st.subheader("Qualification Goals")
-        
-        # Предустановленные цели
+
         AVAILABLE_GOALS = [
             "Budget",
             "Timeline",
@@ -191,18 +241,15 @@ def create_streamlit_interface():
             "Email Address",
             "Preferred Viewing Time"
         ]
-        
-        # Мультиселект для выбора целей
+
         selected_goals = st.multiselect(
             "Select qualification goals",
             AVAILABLE_GOALS,
             default=["Email Address", "Budget"],
             key="selected_goals"
-        )
-        
-        # Создаем или обновляем чеклист на основе выбранных целей
+            )
+
         if selected_goals:
-            # Обновляем только если изменился список целей
             current_goals = set(st.session_state.qual_checklist["checklist"].keys())
             selected_goals_set = set(selected_goals)
     
@@ -212,16 +259,27 @@ def create_streamlit_interface():
                     "last_update": time.time()
                     }
 
-        # Показываем текущий статус квалификации всегда
         if "qual_checklist" in st.session_state:
             st.subheader("Qualification Status")
             st.json(st.session_state.qual_checklist["checklist"])
             
         
-        
-        
+ 
 def main():
-    """Main application function."""
+    """
+    Main application function that orchestrates the chat interface and message processing.
+    
+    This function:
+        1. Initializes the session state
+        2. Creates the Streamlit interface
+        3. Manages the chat message history
+        4. Processes user inputs
+        5. Integrates with knowledge base when available
+        6. Updates and displays the qualification checklist
+        
+    The function runs in a continuous loop, handling user interactions and
+    updating the interface in real-time through Streamlit's reactive framework.
+    """
     initialize_session_state()
     create_streamlit_interface()
     
@@ -275,73 +333,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-        
-#         # Добавим отображение статуса квалификации в боковой панели
-#         st.divider() # Разделительная линия
-#         st.subheader("Qualification Status")
-#     #     #st.json(st.session_state.qualification_status) # Отображаем статус в JSON формате
-
-
-
-#     # # используем session_state для сохранения данных между обновлениями
-#     if "messages" not in st.session_state:
-#         st.session_state["messages"] = [
-#             {"role": "assistant", "content": "How can I help you?"}
-#             ]
-#     # if "qualification_status" not in st.session_state:
-#     #     st.session_state["qualification_status"] = {
-#     #         "status": "pending",
-#     #         "message": {},
-#     #     }
-
-#     # Отображение истории сообщений (Создаем UI элементы для каждого сообщения с соответствующими стилями)
-#     for msg in st.session_state.messages:
-#         st.chat_message(msg["role"]).write(msg["content"])
-        
-#     # Обработка ввода пользователя
-#     # walrus оператор, который присваивает и возвращает значение
-#     if prompt := st.chat_input("Say something"): # walrus оператор, который присваивает и возвращает значение
-#         if not openai_api_key:  # Проверяем наличие API ключа
-#             st.info("Please add your OpenAI API key to continue.")
-#             st.stop()
-#         # # Для отладки
-#         # st.write("Debug - Current prompt:", prompt)
-#         # st.write("Debug - Current messages:", st.session_state.messages)
-
-#         # Добавляем сообщение пользователя в историю и отображаем его
-#         st.session_state.messages.append({"role": "user", "content": prompt})
-#         st.chat_message("user").write(prompt)
-
-
-# # AI
-# # Функция для получения ответа от OpenAI
-# def get_openai_response(messages: List[Dict], openai_api_key: str, model: str) -> str:
-#     client = OpenAI(api_key=openai_api_key) # Создаем клиент OpenAI с предоставленным API ключом
-#     try:
-#         # Создаем запрос к API OpenAI и добавляем системное сообщение с историей сообщений
-#         response = client.chat.completions.create(
-#             model=model,
-#             messages=[
-#                 {"role": "system", "content": SYSTEM_MESSAGE},
-#                 *messages # Добавляем историю сообщений
-#                 ]
-#             )
-#         return response.choices[0].message.content # Возвращаем ответ от OpenAI
-#     except Exception as e: # В случае ошибки выводим сообщение
-#         st.error(f"An error occurred: {e}")
-#         return None
-
-# # Получаем ответ от OpenAI и показываем спиннер во время загрузки
-# with st.spinner("Thinking..."):
-#     response = get_openai_response(
-#         st.session_state.messages, 
-#         openai_api_key, 
-#         selected_model
-#         )       
-# # Если ответ получен, добавляем его в историю и отображаем
-# if response:
-#     st.session_state.messages.append({"role": "assistant", "content": response})
-#     st.chat_message("assistant").write(response)
-#     #st.session_state.qualification_status["status"] = "complete" # Устанавливаем статус квалификации (todo: добавить логику квалификации)
-        
-
